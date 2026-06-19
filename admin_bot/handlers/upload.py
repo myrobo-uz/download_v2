@@ -3,7 +3,7 @@ Fayl yuklash:  nom → kod → caption → media (bir nechta)
 Kanalga yuborib, qaytgan file_id ni DBga yozadi.
 """
 from aiogram import Router, F
-from aiogram.exceptions import TelegramBadRequest
+from aiogram.exceptions import TelegramBadRequest, TelegramMigrateToChat
 from aiogram.fsm.context import FSMContext
 from aiogram.types import (
     Message,
@@ -43,39 +43,48 @@ def _extract_file(msg: Message):
 async def _send_to_channel(bot, settings, incoming_file_id: str,
                            kind: str, channel_caption: str):
     """Faylni kanalga yuboradi va kanaldan qaytgan file_id + message_id qaytaradi."""
-    try:
-        if kind == "video":
-            sent = await bot.send_video(
-                settings.private_channel_id, video=incoming_file_id,
-                caption=channel_caption, protect_content=True)
-            return sent.video.file_id, sent.message_id
-        elif kind == "photo":
-            sent = await bot.send_photo(
-                settings.private_channel_id, photo=incoming_file_id,
-                caption=channel_caption, protect_content=True)
-            return sent.photo[-1].file_id, sent.message_id
-        elif kind == "audio":
-            sent = await bot.send_audio(
-                settings.private_channel_id, audio=incoming_file_id,
-                caption=channel_caption, protect_content=True)
-            return sent.audio.file_id, sent.message_id
-        elif kind == "voice":
-            sent = await bot.send_voice(
-                settings.private_channel_id, voice=incoming_file_id,
-                protect_content=True)
-            return sent.voice.file_id, sent.message_id
-        elif kind == "document":
-            sent = await bot.send_document(
-                settings.private_channel_id, document=incoming_file_id,
-                caption=channel_caption, protect_content=True)
-            return sent.document.file_id, sent.message_id
-        elif kind == "animation":
-            sent = await bot.send_animation(
-                settings.private_channel_id, animation=incoming_file_id,
-                caption=channel_caption, protect_content=True)
-            return sent.animation.file_id, sent.message_id
-    except TelegramBadRequest as e:
-        logger.warning(f"Kanalga yuborishda xatolik: {e}")
+    chat_id = settings.private_channel_id
+    for _ in range(2):
+        try:
+            if kind == "video":
+                sent = await bot.send_video(
+                    chat_id, video=incoming_file_id,
+                    caption=channel_caption, protect_content=True)
+                return sent.video.file_id, sent.message_id
+            elif kind == "photo":
+                sent = await bot.send_photo(
+                    chat_id, photo=incoming_file_id,
+                    caption=channel_caption, protect_content=True)
+                return sent.photo[-1].file_id, sent.message_id
+            elif kind == "audio":
+                sent = await bot.send_audio(
+                    chat_id, audio=incoming_file_id,
+                    caption=channel_caption, protect_content=True)
+                return sent.audio.file_id, sent.message_id
+            elif kind == "voice":
+                sent = await bot.send_voice(
+                    chat_id, voice=incoming_file_id,
+                    protect_content=True)
+                return sent.voice.file_id, sent.message_id
+            elif kind == "document":
+                sent = await bot.send_document(
+                    chat_id, document=incoming_file_id,
+                    caption=channel_caption, protect_content=True)
+                return sent.document.file_id, sent.message_id
+            elif kind == "animation":
+                sent = await bot.send_animation(
+                    chat_id, animation=incoming_file_id,
+                    caption=channel_caption, protect_content=True)
+                return sent.animation.file_id, sent.message_id
+        except TelegramMigrateToChat as e:
+            logger.warning(
+                f"Guruh supergroup ga o'tgan! Yangi ID: {e.migrate_to_chat_id}. "
+                f".env da PRIVATE_CHANNEL_ID={e.migrate_to_chat_id} ga yangilang."
+            )
+            chat_id = e.migrate_to_chat_id
+        except TelegramBadRequest as e:
+            logger.warning(f"Kanalga yuborishda xatolik: {e}")
+            break
     return incoming_file_id, None
 
 
