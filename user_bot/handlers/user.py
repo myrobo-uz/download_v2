@@ -93,28 +93,38 @@ async def get_by_code(message: Message, db, settings, bot):
                 final_cap = f"{caption}\n\n{t('order_label', lang, n=idx)}".strip()
             else:
                 final_cap = caption or None
+            channel_msg_id = rec.get("channel_message_id")
             file_id = rec.get("file_id")
 
-            if not file_id or not isinstance(file_id, str):
-                logger.warning(f"INVALID FILE_ID: {file_id}")
-                continue
-            kw = dict(chat_id=message.chat.id, caption=final_cap or None, protect_content=True)
             try:
-                if kind == "video":
-                    await bot.send_video(video=rec["file_id"], **kw)
-                elif kind == "photo":
-                    await bot.send_photo(photo=rec["file_id"], **kw)
-                elif kind == "audio":
-                    await bot.send_audio(audio=rec["file_id"], **kw)
-                elif kind == "voice":
-                    await bot.send_voice(chat_id=message.chat.id,
-                                        voice=rec["file_id"], protect_content=True)
-                elif kind == "animation":
-                    await bot.send_animation(animation=rec["file_id"], **kw)
+                if channel_msg_id and settings.private_channel_id:
+                    await bot.copy_message(
+                        chat_id=message.chat.id,
+                        from_chat_id=settings.private_channel_id,
+                        message_id=channel_msg_id,
+                        caption=final_cap or None,
+                        protect_content=True,
+                    )
+                elif file_id and isinstance(file_id, str):
+                    kw = dict(chat_id=message.chat.id, caption=final_cap or None, protect_content=True)
+                    if kind == "video":
+                        await bot.send_video(video=file_id, **kw)
+                    elif kind == "photo":
+                        await bot.send_photo(photo=file_id, **kw)
+                    elif kind == "audio":
+                        await bot.send_audio(audio=file_id, **kw)
+                    elif kind == "voice":
+                        await bot.send_voice(chat_id=message.chat.id,
+                                            voice=file_id, protect_content=True)
+                    elif kind == "animation":
+                        await bot.send_animation(animation=file_id, **kw)
+                    else:
+                        await bot.send_document(document=file_id, **kw)
                 else:
-                    await bot.send_document(document=rec["file_id"], **kw)
+                    logger.warning(f"NO SOURCE: id={rec.get('id')} code={rec.get('code')}")
+                    continue
             except TelegramBadRequest as e:
-                logger.error(f"FAILED FILE: {file_id} | ERROR: {e}")
+                logger.error(f"FAILED FILE: {file_id or channel_msg_id} | ERROR: {e}")
         await db.set_last_used_now(message.from_user.id)
 
     except TelegramBadRequest as e:
