@@ -53,6 +53,7 @@ jobs:
           context: .
           platforms: ${{ matrix.platform }}
           push: true
+          provenance: false
           labels: ${{ steps.meta.outputs.labels }}
           outputs: type=image,name=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }},push-by-digest=true,name-canonical=true,push=true
           cache-from: type=gha,scope=${{ matrix.platform }}
